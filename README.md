@@ -108,12 +108,12 @@ git submodule update --remote --merge
 ## 📋 持续更新的TTS模型集成
 
 ### ✅ 当前已集成
-- Fish-Speech (Transformer + VQGAN)
-- GPT-SoVITS (GPT + SoVITS)
+- **[Fish-Speech](https://github.com/fishaudio/fish-speech)** (Transformer + VQGAN) - 由FishAudio团队开发的多语言零样本TTS
+- **[GPT-SoVITS](https://github.com/RVC-Boss/GPT-SoVITS)** (GPT + SoVITS) - 由RVC-Boss开发的强大的零样本语音克隆工具
 
 ### 🚧 计划中集成
-- CosyVoice
-- MegaTTS3
+- **[CosyVoice](https://github.com/FunAudioLLM/CosyVoice)** - 阿里巴巴FunAudioLLM团队开发的多语言零样本TTS
+- **[MegaTTS3](https://github.com/bytedance/MegaTTS3)** - 字节跳动最新开源的零样本语音合成模型
 
 ---
 
