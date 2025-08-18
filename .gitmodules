@@ -4,3 +4,6 @@
 [submodule "TTS_Model/GPT-SoVITS"]
 	path = TTS_Model/GPT-SoVITS
 	url = https://github.com/RVC-Boss/GPT-SoVITS.git
+[submodule "TTS_Model/CosyVoice"]
+	path = TTS_Model/CosyVoice
+	url = https://github.com/FunAudioLLM/CosyVoice.git

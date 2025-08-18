@@ -3,8 +3,10 @@ import multiprocessing as mp
 from multiprocessing import Manager
 import subprocess
 import time
-from typing import List, Tuple
+from typing import List, Tuple, Optional
 import threading
+import argparse
+import json
 
 # GPU管理的全局信号量
 gpu_semaphores = {i: threading.Semaphore(1) for i in range(8)}  # 假设有8张GPU
@@ -131,19 +133,174 @@ def process_all_list_files(func, input_root, output_root, extension='.list', num
         # 使用starmap并行处理任务
         pool.starmap(worker, [(f, d) + args for f, d in tasks], kwargs)
 
-def run_tts_with_list_file(input_file, output_dir, *args, **kwargs):
-    with open(input_file, 'r') as f:
-        for line in f:
-            line = line.strip()
-            if line:
-                print(line)
-                # 这里添加你的TTS处理逻辑
+def run_tts_with_list_file(input_file, output_dir, model_name, speaker_audio=None, speaker_text=None, **kwargs):
+    """使用指定的TTS模型处理单个文件"""
+    
+    if model_name == 'cosyvoice':
+        from infer_api.cosyvoice_tts import CosyVoiceTTS
+        tts = CosyVoiceTTS()
+        
+        # 注册说话人
+        speaker_id = None
+        if speaker_audio and speaker_text:
+            speaker_id = tts.register_speaker(speaker_audio, speaker_text)
+        
+        # 处理文本文件
+        with open(input_file, 'r', encoding='utf-8') as f:
+            for i, line in enumerate(f):
+                line = line.strip()
+                if line:
+                    print(f"Processing line {i+1}: {line[:50]}...")
+                    
+                    try:
+                        if speaker_id:
+                            audio = tts.tts_with_speaker(line, speaker_id)
+                        else:
+                            audio = tts.tts(line)
+                        
+                        # 保存音频文件
+                        output_file = os.path.join(output_dir, f"audio_{i+1:04d}.wav")
+                        import scipy.io.wavfile as wavfile
+                        wavfile.write(output_file, 22050, (audio * 32767).astype('int16'))
+                        print(f"Saved: {output_file}")
+                        
+                    except Exception as e:
+                        print(f"Error processing line {i+1}: {e}")
+                        
+    elif model_name == 'fish-speech':
+        from infer_api.fishspeech_api import FishSpeechTTS
+        tts = FishSpeechTTS()
+        
+        # 注册说话人
+        speaker_id = None
+        if speaker_audio and speaker_text:
+            speaker_id = tts.register_speaker(speaker_audio, speaker_text)
+        
+        # 处理文本文件
+        with open(input_file, 'r', encoding='utf-8') as f:
+            for i, line in enumerate(f):
+                line = line.strip()
+                if line:
+                    print(f"Processing line {i+1}: {line[:50]}...")
+                    
+                    try:
+                        if speaker_id:
+                            audio = tts.tts_with_speaker(line, speaker_id)
+                        else:
+                            audio = tts.tts(line)
+                        
+                        # 保存音频文件
+                        output_file = os.path.join(output_dir, f"audio_{i+1:04d}.wav")
+                        import scipy.io.wavfile as wavfile
+                        wavfile.write(output_file, 22050, (audio * 32767).astype('int16'))
+                        print(f"Saved: {output_file}")
+                        
+                    except Exception as e:
+                        print(f"Error processing line {i+1}: {e}")
+                        
+    elif model_name == 'gpt-sovits':
+        from infer_api.gptSoVITS_tts import GPTSoVITSTTS
+        tts = GPTSoVITSTTS()
+        
+        # 注册说话人
+        speaker_id = None
+        if speaker_audio and speaker_text:
+            speaker_id = tts.register_speaker(speaker_audio, speaker_text)
+        
+        # 处理文本文件
+        with open(input_file, 'r', encoding='utf-8') as f:
+            for i, line in enumerate(f):
+                line = line.strip()
+                if line:
+                    print(f"Processing line {i+1}: {line[:50]}...")
+                    
+                    try:
+                        if speaker_id:
+                            audio = tts.tts_with_speaker(line, speaker_id)
+                        else:
+                            audio = tts.tts(line)
+                        
+                        # 保存音频文件
+                        output_file = os.path.join(output_dir, f"audio_{i+1:04d}.wav")
+                        import scipy.io.wavfile as wavfile
+                        wavfile.write(output_file, 22050, (audio * 32767).astype('int16'))
+                        print(f"Saved: {output_file}")
+                        
+                    except Exception as e:
+                        print(f"Error processing line {i+1}: {e}")
+    else:
+        raise ValueError(f"Unsupported model: {model_name}")
+
 
 def main():
-    process_all_list_files(run_tts_with_list_file, 
-                          '/data/tts/data/list', 
-                          '/data/tts/data/infer',
-                          num_workers=8)
+    parser = argparse.ArgumentParser(description='ZeroShotTTS批量推理工具')
+    parser.add_argument('--input_dir', required=True, help='输入文本文件目录')
+    parser.add_argument('--output_dir', required=True, help='输出音频文件目录')
+    parser.add_argument('--model', choices=['fish-speech', 'gpt-sovits', 'cosyvoice'], 
+                       default='fish-speech', help='使用的TTS模型')
+    parser.add_argument('--speaker_audio', help='参考音频文件路径（用于零样本克隆）')
+    parser.add_argument('--speaker_text', help='参考音频对应的文本内容')
+    parser.add_argument('--num_workers', type=int, default=8, help='并行进程数')
+    parser.add_argument('--extension', default='.txt', help='输入文件扩展名')
+    
+    args = parser.parse_args()
+    
+    # 创建输出目录
+    os.makedirs(args.output_dir, exist_ok=True)
+    
+    # 处理所有文件
+    def run_tts_worker(input_file, output_dir):
+        try:
+            gpu_id = wait_for_free_gpu()
+            
+            with gpu_lock:
+                if gpu_task_counts[gpu_id] >= gpu_max_tasks:
+                    print(f"GPU {gpu_id} has reached max tasks ({gpu_max_tasks}), retrying...")
+                    return run_tts_worker(input_file, output_dir)
+                
+                gpu_task_counts[gpu_id] += 1
+                gpu_semaphores[gpu_id].acquire()
+            
+            os.environ['CUDA_VISIBLE_DEVICES'] = str(gpu_id)
+            print(f"Processing {input_file} on GPU {gpu_id} (Tasks: {gpu_task_counts[gpu_id]}/{gpu_max_tasks})")
+            
+            run_tts_with_list_file(
+                input_file, 
+                output_dir, 
+                args.model,
+                speaker_audio=args.speaker_audio,
+                speaker_text=args.speaker_text
+            )
+            
+        except Exception as e:
+            print(f"Error processing {input_file}: {str(e)}")
+        finally:
+            if 'gpu_id' in locals():
+                with gpu_lock:
+                    gpu_task_counts[gpu_id] -= 1
+                    gpu_semaphores[gpu_id].release()
+    
+    # 收集所有需要处理的文件
+    tasks = []
+    for root, dirs, files in os.walk(args.input_dir):
+        for file in files:
+            if file.endswith(args.extension):
+                input_file = os.path.join(root, file)
+                relative_path = os.path.relpath(root, args.input_dir)
+                output_dir = os.path.join(args.output_dir, relative_path)
+                
+                # 创建输出目录
+                os.makedirs(output_dir, exist_ok=True)
+                tasks.append((input_file, output_dir))
+    
+    print(f"Found {len(tasks)} files to process with model {args.model}")
+    
+    # 创建进程池
+    with mp.Pool(args.num_workers) as pool:
+        pool.starmap(run_tts_worker, tasks)
+    
+    print("All tasks completed!")
+
 
 if __name__ == '__main__':
     main()
