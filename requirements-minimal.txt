@@ -1,0 +1,11 @@
+# ZeroShotTTS 最小依赖
+numpy
+scipy
+librosa
+soundfile
+requests
+fastapi
+uvicorn
+torch
+torchaudio
+transformers

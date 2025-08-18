@@ -1,0 +1,57 @@
+# ZeroShotTTS 核心依赖
+numpy>=1.21.0
+scipy>=1.7.0
+librosa>=0.9.0
+soundfile>=0.10.0
+wave>=0.0.2
+
+# 音频处理
+pydub>=0.25.1
+resampy>=0.2.2
+webrtcvad>=2.0.10
+
+# 机器学习框架
+torch>=1.12.0
+torchaudio>=0.12.0
+transformers>=4.20.0
+
+# HTTP请求
+requests>=2.28.0
+fastapi>=0.75.0
+uvicorn>=0.18.0
+
+# 并发处理
+multiprocessing-logging>=0.3.0
+threading
+
+# 文件处理
+pathlib2>=2.3.0
+os-sys>=1.0.0
+
+# 数据格式
+json5>=0.9.0
+pyyaml>=6.0
+
+# 可选依赖 - 根据模型需要
+# Fish-Speech 额外依赖
+hydra-core>=1.2.0
+lightning>=1.7.0
+gradio>=3.0.0
+
+# GPT-SoVITS 额外依赖
+# 这些依赖已包含在子模块中，无需重复安装
+
+# CosyVoice 额外依赖
+# 这些依赖已包含在子模块中，无需重复安装
+
+# 开发工具
+pytest>=7.0.0
+black>=22.0.0
+isort>=5.10.0
+
+# 系统监控
+psutil>=5.9.0
+GPUtil>=1.4.0
+
+# 日志
+loguru>=0.6.0
