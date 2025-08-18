@@ -1,0 +1,6 @@
+[submodule "TTS_Model/fish-speech"]
+	path = TTS_Model/fish-speech
+	url = https://github.com/fishaudio/fish-speech.git
+[submodule "TTS_Model/GPT-SoVITS"]
+	path = TTS_Model/GPT-SoVITS
+	url = https://github.com/RVC-Boss/GPT-SoVITS.git
