@@ -264,13 +264,25 @@ if self.model_sample_rate != 16000:
 
 #### 7. Model-Specific Implementation Rules
 
+**Universal Mode Standards:**
+All TTS models should implement these standard modes:
+- **zero_shot**: Use registered speaker for voice cloning
+- **default**: Use model's default voice or first registered speaker
+- **sft** (if supported): Use pre-trained speakers from the model
+
 **Index-TTS Specific Rules:**
-- **Simplified Modes**: Only support `zero_shot` and `default` modes
+- **Simplified Modes**: Only support `zero_shot` and `default` modes (as per design requirement)
   - `zero_shot`: Use registered speaker for voice cloning
   - `default`: Use default reference audio or first registered speaker
 - **Speaker Registration**: Store reference audio paths, use IndexTTS2.infer() directly
 - **Audio Format**: Index-TTS expects 16kHz input, outputs 24kHz (resample to 16kHz)
 - **Error Handling**: Validate speaker existence before inference
+
+**Future Model Implementation Rule:**
+When adding new TTS models, follow the Index-TTS pattern of simplified modes:
+- Start with `zero_shot` and `default` modes only
+- Add additional modes only when specific features require them
+- Keep the interface simple and consistent with BaseTTS
 
 ```python
 def tts_with_speaker(self, text, speaker_id=None, mode='zero_shot'):
@@ -307,6 +319,259 @@ All models must implement:
 | GPT-SoVITS | zero_shot, sft | 16kHz output | 8GB+ | CN, EN, JP, KR, Yue | GPT + SoVITS |
 | CosyVoice | zero_shot, cross_lingual, instruct, sft | 16kHz output | 6GB+ | CN, EN, JP, KR, Yue | Multi-language support |
 | Index-TTS | **zero_shot, default only** | 16kHz output | 6GB+ | CN, EN | **Simplified modes, industrial-grade** |
+
+## Unified Model Interface Architecture
+
+### Design Philosophy
+
+The ZeroShotTTS system implements a **unified interface architecture** that separates model-specific logic from common processing logic. This design follows several key principles:
+
+#### 1. **DRY Principle (Don't Repeat Yourself)**
+All common processing logic is centralized in `infer.py`, eliminating code duplication across model implementations.
+
+#### 2. **Single Responsibility Principle**
+- `infer.py`: Handles common processing pipeline (file I/O, batch processing, GPU management)
+- Model wrappers: Handle model-specific logic (initialization, inference, speaker management)
+- BaseTTS interface: Defines the contract all models must implement
+
+#### 3. **Open/Closed Principle**
+The system is open for extension (new models) but closed for modification (common logic).
+
+### Architecture Benefits
+
+#### Before Optimization (❌ Anti-pattern)
+```python
+# Repetitive if-elif structure - hard to maintain
+if model_name == 'model1':
+    # 40+ lines of duplicate logic
+    model = Model1()
+    speaker_id = model.register_speaker(audio, text)
+    # ... same file processing logic
+elif model_name == 'model2':
+    # 40+ lines of duplicate logic
+    model = Model2()
+    speaker_id = model.register_speaker(audio, text)
+    # ... same file processing logic
+# ... repeated for each model
+```
+
+#### After Optimization (✅ Best Practice)
+```python
+# Unified interface - clean and maintainable
+def run_tts_with_list_file(input_file, output_dir, model_name, speaker_audio=None, speaker_text=None):
+    tts_model = create_tts_model(model_name)  # Factory pattern
+    process_text_file_with_tts(input_file, output_dir, tts_model, speaker_audio, speaker_text)
+```
+
+### Model Mode Standards
+
+#### Core Mode Requirements
+All TTS models must implement these standard modes:
+
+1. **zero_shot** (Required)
+   - Uses registered speaker audio for voice cloning
+   - Implementation: Check if speaker_id exists in registered speakers
+   - Fallback: Use default speaker if no specific speaker provided
+
+2. **default** (Required)
+   - Uses model's built-in default voice or first registered speaker
+   - Implementation: Use model's native default or first speaker in registry
+   - Fallback: Use basic TTS without speaker reference
+
+3. **sft** (Optional, if model supports)
+   - Uses model's pre-trained speakers
+   - Implementation: Use model's built-in speaker voices
+   - Only implement if model has native SFT support
+
+#### Mode Implementation Pattern
+```python
+def tts_with_speaker(self, text, speaker_id=None, mode='zero_shot'):
+    if mode == 'zero_shot':
+        if speaker_id and speaker_id in self.speakers:
+            # Use registered speaker
+            return self._synthesize_with_speaker(text, speaker_id)
+        else:
+            raise ValueError("Speaker not found for zero_shot mode")
+
+    elif mode == 'default':
+        if self.speakers:
+            # Use first registered speaker as default
+            first_speaker = next(iter(self.speakers.keys()))
+            return self._synthesize_with_speaker(text, first_speaker)
+        else:
+            # Use model's built-in default
+            return self._synthesize_default(text)
+
+    elif mode == 'sft' and hasattr(self, 'list_available_spks'):
+        # Use model's pre-trained speakers
+        available_spks = self.list_available_spks()
+        if available_spks:
+            return self._synthesize_sft(text, available_spks[0])
+        else:
+            raise ValueError("No pre-trained speakers available")
+
+    else:
+        raise ValueError(f"Unsupported mode: {mode}")
+```
+
+### Adding New Models
+
+To add a new TTS model, follow this checklist:
+
+#### 1. **Repository Setup**
+```bash
+# Add as git submodule
+git submodule add <repository-url> TTS_Model/new-model
+
+# Update submodules
+git submodule update --init --recursive
+```
+
+#### 2. **Wrapper Implementation**
+Create `infer_api/new_model.py`:
+```python
+from .baseTTS import BaseTTS
+
+class NewModelTTS(BaseTTS):
+    def __init__(self, model_dir=None, device=None):
+        super().__init__()
+        # Model-specific initialization
+
+    def register_speaker(self, prompt_audio, prompt_text, speaker_name=None):
+        # Model-specific speaker registration
+        return speaker_id
+
+    def tts(self, text, **kwargs):
+        # Model-specific inference without speaker
+        return audio_array
+
+    def tts_with_speaker(self, text, speaker_id, mode='zero_shot', **kwargs):
+        # Model-specific inference with speaker
+        if mode == 'zero_shot':
+            # Use registered speaker
+        elif mode == 'default':
+            # Use default/first speaker
+        return audio_array
+```
+
+#### 3. **Integration**
+Update `infer.py`:
+```python
+def create_tts_model(model_name: str):
+    model_map = {
+        'existing-models': '...',
+        'new-model': 'infer_api.new_model:NewModelTTS',  # Add this line
+    }
+    # ... rest of factory logic
+```
+
+#### 4. **Testing**
+```bash
+# Test model loading
+python -c "from infer_api.new_model import NewModelTTS; m = NewModelTTS(); print('OK')"
+
+# Test with infer.py
+python infer.py --model new-model --input_dir ./texts --output_dir ./output
+```
+
+### Quality Assurance Checklist
+
+When implementing a new TTS model wrapper:
+
+- [ ] Implement `BaseTTS` interface completely
+- [ ] Support `zero_shot` and `default` modes at minimum
+- [ ] Output 16kHz audio consistently
+- [ ] Use local GPU inference (no API calls)
+- [ ] Handle errors gracefully with informative messages
+- [ ] Follow direct import pattern (no try-except blocks)
+- [ ] Add model to factory map in `create_tts_model()`
+- [ ] Update CLAUDE.md with model-specific notes
+- [ ] Test with both speaker cloning and default modes
+- [ ] Verify batch processing works correctly
+
+#### 1. Factory Pattern Implementation
+All models use a unified factory pattern for instantiation:
+
+```python
+def create_tts_model(model_name: str):
+    model_map = {
+        'fish-speech': 'infer_api.fishspeech_api:FishSpeechTTS',
+        'gpt-sovits': 'infer_api.gptSoVITS_tts:GPTSoVITSTTS',
+        'cosyvoice': 'infer_api.cosyvoice_tts:CosyVoiceTTS',
+        'index-tts': 'infer_api.index_tts:IndexTTSTTS',
+    }
+    module_path, class_name = model_map[model_name].split(':')
+    module = __import__(module_path, fromlist=[class_name])
+    return getattr(module, class_name)()
+```
+
+#### 2. Unified Processing Pipeline
+All models follow the same processing pattern in `infer.py`:
+
+```python
+def process_text_file_with_tts(input_file, output_dir, tts_model, speaker_audio=None, speaker_text=None):
+    # 1. Register speaker (unified logic)
+    speaker_id = None
+    if speaker_audio and speaker_text:
+        speaker_id = tts_model.register_speaker(speaker_audio, speaker_text)
+
+    # 2. Process text file (unified logic)
+    with open(input_file, 'r', encoding='utf-8') as f:
+        for i, line in enumerate(f):
+            line = line.strip()
+            if line:
+                print(f"Processing line {i+1}: {line[:50]}...")
+
+                try:
+                    # 3. Unified audio synthesis logic
+                    if speaker_id:
+                        audio = tts_model.tts_with_speaker(line, speaker_id)
+                    else:
+                        audio = tts_model.tts(line)
+
+                    # 4. Unified audio saving logic
+                    output_file = os.path.join(output_dir, f"audio_{i+1:04d}.wav")
+                    wavfile.write(output_file, 16000, (audio * 32767).astype('int16'))
+                    print(f"Saved: {output_file}")
+
+                except Exception as e:
+                    print(f"Error processing line {i+1}: {e}")
+```
+
+#### 3. Model-Specific Logic Isolation
+All model-specific logic is isolated in individual wrapper classes:
+
+- **Model Initialization**: Each model handles its own initialization in `__init__()`
+- **Speaker Processing**: Each model handles speaker registration in `register_speaker()`
+- **Audio Synthesis**: Each model handles synthesis in `tts()` and `tts_with_speaker()`
+- **Resource Management**: Each model handles its own GPU memory and model loading
+
+#### 4. Adding New Models
+To add a new TTS model:
+
+1. **Create wrapper class** in `infer_api/` implementing `BaseTTS` interface
+2. **Add to factory map** in `create_tts_model()` function
+3. **Implement model-specific logic** in the wrapper class
+4. **Follow unified standards** (16kHz output, local GPU inference, etc.)
+
+**Example**:
+```python
+def create_tts_model(model_name: str):
+    model_map = {
+        'existing-models': '...',
+        'new-model': 'infer_api.new_model:NewModelTTS',  # Add here
+    }
+    # ... rest of factory logic
+```
+
+#### 5. Benefits of Unified Architecture
+
+- **DRY Principle**: No code duplication across model implementations
+- **Maintainability**: Changes to common logic only need to be made once
+- **Extensibility**: New models can be added with minimal code changes
+- **Consistency**: All models follow the same interface and behavior patterns
+- **Testability**: Unified testing approach for all models
+- **Debugging**: Centralized error handling and logging
 
 ## Testing and Validation
 

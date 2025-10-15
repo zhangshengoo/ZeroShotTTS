@@ -7,6 +7,7 @@ from typing import List, Tuple, Optional
 import threading
 import argparse
 import json
+import scipy.io.wavfile as wavfile
 
 # GPU管理的全局信号量
 gpu_semaphores = {i: threading.Semaphore(1) for i in range(8)}  # 假设有8张GPU
@@ -133,133 +134,64 @@ def process_all_list_files(func, input_root, output_root, extension='.list', num
         # 使用starmap并行处理任务
         pool.starmap(worker, [(f, d) + args for f, d in tasks], kwargs)
 
-def run_tts_with_list_file(input_file, output_dir, model_name, speaker_audio=None, speaker_text=None, **kwargs):
-    """使用指定的TTS模型处理单个文件"""
-    
-    if model_name == 'cosyvoice':
-        from infer_api.cosyvoice_tts import CosyVoiceTTS
-        tts = CosyVoiceTTS()
-        
-        # 注册说话人
-        speaker_id = None
-        if speaker_audio and speaker_text:
-            speaker_id = tts.register_speaker(speaker_audio, speaker_text)
-        
-        # 处理文本文件
-        with open(input_file, 'r', encoding='utf-8') as f:
-            for i, line in enumerate(f):
-                line = line.strip()
-                if line:
-                    print(f"Processing line {i+1}: {line[:50]}...")
-                    
-                    try:
-                        if speaker_id:
-                            audio = tts.tts_with_speaker(line, speaker_id)
-                        else:
-                            audio = tts.tts(line)
-                        
-                        # 保存音频文件
-                        output_file = os.path.join(output_dir, f"audio_{i+1:04d}.wav")
-                        import scipy.io.wavfile as wavfile
-                        wavfile.write(output_file, 16000, (audio * 32767).astype('int16'))
-                        print(f"Saved: {output_file}")
-                        
-                    except Exception as e:
-                        print(f"Error processing line {i+1}: {e}")
-                        
-    elif model_name == 'fish-speech':
-        from infer_api.fishspeech_api import FishSpeechTTS
-        tts = FishSpeechTTS()
-        
-        # 注册说话人
-        speaker_id = None
-        if speaker_audio and speaker_text:
-            speaker_id = tts.register_speaker(speaker_audio, speaker_text)
-        
-        # 处理文本文件
-        with open(input_file, 'r', encoding='utf-8') as f:
-            for i, line in enumerate(f):
-                line = line.strip()
-                if line:
-                    print(f"Processing line {i+1}: {line[:50]}...")
-                    
-                    try:
-                        if speaker_id:
-                            audio = tts.tts_with_speaker(line, speaker_id)
-                        else:
-                            audio = tts.tts(line)
-                        
-                        # 保存音频文件
-                        output_file = os.path.join(output_dir, f"audio_{i+1:04d}.wav")
-                        import scipy.io.wavfile as wavfile
-                        wavfile.write(output_file, 16000, (audio * 32767).astype('int16'))
-                        print(f"Saved: {output_file}")
-                        
-                    except Exception as e:
-                        print(f"Error processing line {i+1}: {e}")
-                        
-    elif model_name == 'gpt-sovits':
-        from infer_api.gptSoVITS_tts import GPTSoVITSTTS
-        tts = GPTSoVITSTTS()
-        
-        # 注册说话人
-        speaker_id = None
-        if speaker_audio and speaker_text:
-            speaker_id = tts.register_speaker(speaker_audio, speaker_text)
-        
-        # 处理文本文件
-        with open(input_file, 'r', encoding='utf-8') as f:
-            for i, line in enumerate(f):
-                line = line.strip()
-                if line:
-                    print(f"Processing line {i+1}: {line[:50]}...")
-                    
-                    try:
-                        if speaker_id:
-                            audio = tts.tts_with_speaker(line, speaker_id)
-                        else:
-                            audio = tts.tts(line)
-                        
-                        # 保存音频文件
-                        output_file = os.path.join(output_dir, f"audio_{i+1:04d}.wav")
-                        import scipy.io.wavfile as wavfile
-                        wavfile.write(output_file, 16000, (audio * 32767).astype('int16'))
-                        print(f"Saved: {output_file}")
-                        
-                    except Exception as e:
-                        print(f"Error processing line {i+1}: {e}")
-    elif model_name == 'index-tts':
-        from infer_api.index_tts import IndexTTSTTS
-        tts = IndexTTSTTS()
+def create_tts_model(model_name: str):
+    """创建TTS模型实例 - 统一的模型工厂"""
+    model_map = {
+        'fish-speech': 'infer_api.fishspeech_api:FishSpeechTTS',
+        'gpt-sovits': 'infer_api.gptSoVITS_tts:GPTSoVITSTTS',
+        'cosyvoice': 'infer_api.cosyvoice_tts:CosyVoiceTTS',
+        'index-tts': 'infer_api.index_tts:IndexTTSTTS',
+    }
 
-        # 注册说话人
-        speaker_id = None
-        if speaker_audio and speaker_text:
-            speaker_id = tts.register_speaker(speaker_audio, speaker_text)
-
-        # 处理文本文件
-        with open(input_file, 'r', encoding='utf-8') as f:
-            for i, line in enumerate(f):
-                line = line.strip()
-                if line:
-                    print(f"Processing line {i+1}: {line[:50]}...")
-
-                    try:
-                        if speaker_id:
-                            audio = tts.tts_with_speaker(line, speaker_id)
-                        else:
-                            audio = tts.tts(line)
-
-                        # 保存音频文件
-                        output_file = os.path.join(output_dir, f"audio_{i+1:04d}.wav")
-                        import scipy.io.wavfile as wavfile
-                        wavfile.write(output_file, 16000, (audio * 32767).astype('int16'))
-                        print(f"Saved: {output_file}")
-
-                    except Exception as e:
-                        print(f"Error processing line {i+1}: {e}")
-    else:
+    if model_name not in model_map:
         raise ValueError(f"Unsupported model: {model_name}")
+
+    module_path, class_name = model_map[model_name].split(':')
+    module = __import__(module_path, fromlist=[class_name])
+    model_class = getattr(module, class_name)
+
+    return model_class()
+
+
+def process_text_file_with_tts(input_file: str, output_dir: str, tts_model, speaker_audio: str = None, speaker_text: str = None):
+    """统一的文本文件处理函数 - 适用于所有TTS模型"""
+
+    # 注册说话人（统一的逻辑）
+    speaker_id = None
+    if speaker_audio and speaker_text:
+        speaker_id = tts_model.register_speaker(speaker_audio, speaker_text)
+
+    # 处理文本文件（统一的逻辑）
+    with open(input_file, 'r', encoding='utf-8') as f:
+        for i, line in enumerate(f):
+            line = line.strip()
+            if line:
+                print(f"Processing line {i+1}: {line[:50]}...")
+
+                try:
+                    # 统一的音频合成逻辑
+                    if speaker_id:
+                        audio = tts_model.tts_with_speaker(line, speaker_id)
+                    else:
+                        audio = tts_model.tts(line)
+
+                    # 统一的音频保存逻辑
+                    output_file = os.path.join(output_dir, f"audio_{i+1:04d}.wav")
+                    wavfile.write(output_file, 16000, (audio * 32767).astype('int16'))
+                    print(f"Saved: {output_file}")
+
+                except Exception as e:
+                    print(f"Error processing line {i+1}: {e}")
+
+
+def run_tts_with_list_file(input_file, output_dir, model_name, speaker_audio=None, speaker_text=None, **kwargs):
+    """使用指定的TTS模型处理单个文件 - 统一接口版本"""
+
+    # 创建TTS模型实例
+    tts_model = create_tts_model(model_name)
+
+    # 使用统一的处理逻辑
+    process_text_file_with_tts(input_file, output_dir, tts_model, speaker_audio, speaker_text)
 
 
 def main():
