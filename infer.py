@@ -141,6 +141,7 @@ def create_tts_model(model_name: str):
         'gpt-sovits': 'infer_api.gptSoVITS_tts:GPTSoVITSTTS',
         'cosyvoice': 'infer_api.cosyvoice_tts:CosyVoiceTTS',
         'index-tts': 'infer_api.index_tts:IndexTTSTTS',
+        'melo-tts': 'infer_api.melo_tts:MeloTTSTTS',
     }
 
     if model_name not in model_map:
@@ -198,7 +199,7 @@ def main():
     parser = argparse.ArgumentParser(description='ZeroShotTTS批量推理工具')
     parser.add_argument('--input_dir', required=True, help='输入文本文件目录')
     parser.add_argument('--output_dir', required=True, help='输出音频文件目录')
-    parser.add_argument('--model', choices=['fish-speech', 'gpt-sovits', 'cosyvoice', 'index-tts'],
+    parser.add_argument('--model', choices=['fish-speech', 'gpt-sovits', 'cosyvoice', 'index-tts', 'melo-tts'],
                        default='fish-speech', help='使用的TTS模型')
     parser.add_argument('--speaker_audio', help='参考音频文件路径（用于零样本克隆）')
     parser.add_argument('--speaker_text', help='参考音频对应的文本内容')

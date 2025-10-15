@@ -37,6 +37,10 @@ python TTS_Model/CosyVoice/api.py --port 50000
 # Run Index-TTS inference
 python -c "from infer_api.index_tts import IndexTTSTTS; tts = IndexTTSTTS(); audio = tts.tts_with_speaker('Hello world', 'speaker_1')"
 
+# Run MeloTTS inference (multi-lingual)
+python -c "from infer_api.melo_tts import MeloTTSTTS; tts = MeloTTSTTS(language='EN'); audio = tts.tts_with_speaker('Hello world', 'speaker_1')"
+python -c "from infer_api.melo_tts import MeloTTSTTS; tts = MeloTTSTTS(language='ZH'); audio = tts.tts('你好世界')"
+
 # Batch processing with GPU management
 python infer.py --input_dir ./texts --output_dir ./output --model fish-speech
 
@@ -51,6 +55,7 @@ python -c "from infer_api.fishspeech_api import FishSpeechTTS; tts = FishSpeechT
 python -c "from infer_api.gptSoVITS_tts import GPTSoVITSTTS; tts = GPTSoVITSTTS(); print('GPTSoVITS API loaded successfully')"
 python -c "from infer_api.cosyvoice_tts import CosyVoiceTTS; tts = CosyVoiceTTS(); print('CosyVoice API loaded successfully')"
 python -c "from infer_api.index_tts import IndexTTSTTS; tts = IndexTTSTTS(); print('Index-TTS API loaded successfully')"
+python -c "from infer_api.melo_tts import MeloTTSTTS; tts = MeloTTSTTS(); print('MeloTTS API loaded successfully')"
 
 # Test speaker registration
 curl -X POST http://localhost:8080/register_speaker -F "audio=@ref.wav" -F "text=Hello"
@@ -83,6 +88,7 @@ ZeroShotTTS is a unified text-to-speech system supporting **Fish-Speech**, **GPT
 - **GPT-SoVITS**: GPT-based prosody modeling + SoVITS audio synthesis
 - **CosyVoice**: Multi-language TTS from Alibaba with local GPU inference
 - **Index-TTS**: Industrial-level controllable zero-shot TTS from IndexTeam
+- **MeloTTS**: High-quality multi-lingual TTS from MyShell AI with built-in speakers
 
 ### Key Components
 
@@ -94,12 +100,14 @@ ZeroShotTTS/
 │   ├── fishspeech_api.py   # Fish-Speech wrapper implementation
 │   ├── gptSoVITS_tts.py    # GPT-SoVITS wrapper implementation
 │   ├── cosyvoice_tts.py    # CosyVoice wrapper implementation
-│   └── index_tts.py        # Index-TTS wrapper implementation
+│   ├── index_tts.py        # Index-TTS wrapper implementation
+│   └── melo_tts.py         # MeloTTS wrapper implementation
 ├── TTS_Model/              # Model implementations (git submodules)
 │   ├── fish-speech/        # Transformer-based TTS
 │   ├── GPT-SoVITS/         # GPT + SoVITS models
 │   ├── CosyVoice/          # Multi-language TTS from Alibaba
-│   └── index-tts/          # Industrial-level zero-shot TTS
+│   ├── index-tts/          # Industrial-level zero-shot TTS
+│   └── melo-tts/           # High-quality multi-lingual TTS
 ├── examples/               # Sample files and reference audio
 ├── scripts/                # Utility scripts for setup
 └── docs/                   # Documentation
@@ -127,9 +135,10 @@ from infer_api.fishspeech_api import FishSpeechTTS
 from infer_api.gptSoVITS_tts import GPTSoVITSTTS
 from infer_api.cosyvoice_tts import CosyVoiceTTS
 from infer_api.index_tts import IndexTTSTTS
+from infer_api.melo_tts import MeloTTSTTS
 
 # Initialize models
-tts = FishSpeechTTS()  # or GPTSoVITSTTS() or CosyVoiceTTS() or IndexTTSTTS()
+tts = FishSpeechTTS()  # or GPTSoVITSTTS() or CosyVoiceTTS() or IndexTTSTTS() or MeloTTSTTS()
 
 # Register speaker and synthesize
 speaker_id = tts.register_speaker(prompt_audio="ref.wav", prompt_text="Reference text")
@@ -157,6 +166,7 @@ The `infer.py` script provides advanced features:
 - **GPT-SoVITS**: `TTS_Model/GPT-SoVITS/config.py`
 - **CosyVoice**: `TTS_Model/CosyVoice/cosyvoice.yaml`
 - **Index-TTS**: `TTS_Model/index-tts/checkpoints/config.yaml`
+- **MeloTTS**: Uses HuggingFace models, auto-downloaded to cache
 - **Unified API**: Environment variables override defaults
 
 ### Model Locations
@@ -165,12 +175,14 @@ Models are stored in:
 - **GPT-SoVITS**: `TTS_Model/GPT-SoVITS/GPT_weights/` and `SoVITS_weights/`
 - **CosyVoice**: Downloaded automatically or placed in `TTS_Model/CosyVoice/pretrained_models/`
 - **Index-TTS**: Download from HuggingFace: `IndexTeam/IndexTTS-2` to `TTS_Model/index-tts/checkpoints/`
+- **MeloTTS**: Auto-downloaded from HuggingFace: `myshell-ai/MeloTTS-*` to cache
 
 ### Supported Languages
 - **Fish-Speech**: Chinese, English, Japanese, Korean, Cantonese
 - **GPT-SoVITS**: Chinese, English, Japanese, Korean, Cantonese
 - **CosyVoice**: Chinese, English, Japanese, Korean, Cantonese
 - **Index-TTS**: Chinese, English (primary support)
+- **MeloTTS**: English (US/UK/India/Australia), Chinese, Spanish, French, Japanese, Korean (built-in speakers)
 
 ## Common Issues and Solutions
 
@@ -270,6 +282,14 @@ All TTS models should implement these standard modes:
 - **default**: Use model's default voice or first registered speaker
 - **sft** (if supported): Use pre-trained speakers from the model
 
+**MeloTTS Specific Rules:**
+- **Built-in Speaker System**: Uses pre-defined speakers per language (EN-US, EN-BR, ZH, etc.)
+- **Zero-shot Mode**: Stores reference audio for speaker adaptation guidance
+- **Default Mode**: Uses language-specific built-in speakers
+- **Low Memory**: Only 4GB+ GPU memory required
+- **CPU Real-time**: Optimized for CPU inference
+- **Multi-accent**: English supports US, UK, India, Australia accents
+
 **Index-TTS Specific Rules:**
 - **Simplified Modes**: Only support `zero_shot` and `default` modes (as per design requirement)
   - `zero_shot`: Use registered speaker for voice cloning
@@ -319,6 +339,7 @@ All models must implement:
 | GPT-SoVITS | zero_shot, sft | 16kHz output | 8GB+ | CN, EN, JP, KR, Yue | GPT + SoVITS |
 | CosyVoice | zero_shot, cross_lingual, instruct, sft | 16kHz output | 6GB+ | CN, EN, JP, KR, Yue | Multi-language support |
 | Index-TTS | **zero_shot, default only** | 16kHz output | 6GB+ | CN, EN | **Simplified modes, industrial-grade** |
+| MeloTTS | **zero_shot, default only** | 16kHz output | 4GB+ | EN, ZH, ES, FR, JP, KR | **Built-in speakers, CPU real-time** |
 
 ## Unified Model Interface Architecture
 
@@ -465,6 +486,25 @@ def create_tts_model(model_name: str):
     # ... rest of factory logic
 ```
 
+**MeloTTS Integration Example:**
+```python
+def create_tts_model(model_name: str):
+    model_map = {
+        'fish-speech': 'infer_api.fishspeech_api:FishSpeechTTS',
+        'gpt-sovits': 'infer_api.gptSoVITS_tts:GPTSoVITSTTS',
+        'cosyvoice': 'infer_api.cosyvoice_tts:CosyVoiceTTS',
+        'index-tts': 'infer_api.index_tts:IndexTTSTTS',
+        'melo-tts': 'infer_api.melo_tts:MeloTTSTTS',  # Add this line
+    }
+    # ... rest of factory logic
+```
+
+**Update argument parser:**
+```python
+parser.add_argument('--model', choices=['fish-speech', 'gpt-sovits', 'cosyvoice', 'index-tts', 'melo-tts'],
+                   default='fish-speech', help='使用的TTS模型')
+```
+
 #### 4. **Testing**
 ```bash
 # Test model loading
@@ -499,6 +539,7 @@ def create_tts_model(model_name: str):
         'gpt-sovits': 'infer_api.gptSoVITS_tts:GPTSoVITSTTS',
         'cosyvoice': 'infer_api.cosyvoice_tts:CosyVoiceTTS',
         'index-tts': 'infer_api.index_tts:IndexTTSTTS',
+        'melo-tts': 'infer_api.melo_tts:MeloTTSTTS',
     }
     module_path, class_name = model_map[model_name].split(':')
     module = __import__(module_path, fromlist=[class_name])
@@ -585,6 +626,7 @@ python -m pytest tests/test_fishspeech.py -v
 python -m pytest tests/test_gptsovits.py -v
 python -m pytest tests/test_cosyvoice.py -v
 python -m pytest tests/test_index_tts.py -v
+python -m pytest tests/test_melo_tts.py -v
 ```
 
 ### Integration Tests
@@ -596,4 +638,5 @@ curl -X POST http://localhost:8080/tts -H "Content-Type: application/json" -d '{
 # Test batch processing
 python infer.py --input_dir examples/texts --output_dir test_output --model fish-speech --max_workers 2
 python infer.py --input_dir examples/texts --output_dir test_output --model index-tts --max_workers 2
+python infer.py --input_dir examples/texts --output_dir test_output --model melo-tts --max_workers 2
 ```

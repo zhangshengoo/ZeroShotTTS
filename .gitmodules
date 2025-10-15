@@ -10,3 +10,6 @@
 [submodule "TTS_Model/index-tts"]
 	path = TTS_Model/index-tts
 	url = https://github.com/index-tts/index-tts.git
+[submodule "TTS_Model/melo-tts"]
+	path = TTS_Model/melo-tts
+	url = https://github.com/myshell-ai/MeloTTS.git
