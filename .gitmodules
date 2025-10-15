@@ -7,3 +7,6 @@
 [submodule "TTS_Model/CosyVoice"]
 	path = TTS_Model/CosyVoice
 	url = https://github.com/FunAudioLLM/CosyVoice.git
+[submodule "TTS_Model/index-tts"]
+	path = TTS_Model/index-tts
+	url = https://github.com/index-tts/index-tts.git

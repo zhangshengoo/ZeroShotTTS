@@ -13,6 +13,14 @@ git submodule update --init --recursive
 
 # Install dependencies
 pip install -e .
+
+# Download Index-TTS models (optional, if using Index-TTS)
+cd TTS_Model/index-tts
+mkdir -p checkpoints
+cd checkpoints
+# Download from HuggingFace
+huggingface-cli download IndexTeam/IndexTTS-2 --local-dir=.
+# Or download manually from: https://huggingface.co/IndexTeam/IndexTTS-2
 ```
 
 ### Core Development Commands
@@ -25,6 +33,9 @@ python TTS_Model/GPT-SoVITS/api.py -dr ref.wav -dt "reference text" -dl zh
 
 # Run CosyVoice API
 python TTS_Model/CosyVoice/api.py --port 50000
+
+# Run Index-TTS inference
+python -c "from infer_api.index_tts import IndexTTSTTS; tts = IndexTTSTTS(); audio = tts.tts_with_speaker('Hello world', 'speaker_1')"
 
 # Batch processing with GPU management
 python infer.py --input_dir ./texts --output_dir ./output --model fish-speech
@@ -39,6 +50,7 @@ python -m tools.api_server --llama-checkpoint path/to/checkpoint
 python -c "from infer_api.fishspeech_api import FishSpeechTTS; tts = FishSpeechTTS(); print('FishSpeech API loaded successfully')"
 python -c "from infer_api.gptSoVITS_tts import GPTSoVITSTTS; tts = GPTSoVITSTTS(); print('GPTSoVITS API loaded successfully')"
 python -c "from infer_api.cosyvoice_tts import CosyVoiceTTS; tts = CosyVoiceTTS(); print('CosyVoice API loaded successfully')"
+python -c "from infer_api.index_tts import IndexTTSTTS; tts = IndexTTSTTS(); print('Index-TTS API loaded successfully')"
 
 # Test speaker registration
 curl -X POST http://localhost:8080/register_speaker -F "audio=@ref.wav" -F "text=Hello"
@@ -69,7 +81,8 @@ ZeroShotTTS is a unified text-to-speech system supporting **Fish-Speech**, **GPT
 
 - **Fish-Speech**: Transformer-based TTS with Llama encoder + VQGAN decoder
 - **GPT-SoVITS**: GPT-based prosody modeling + SoVITS audio synthesis
-- **CosyVoice**: Multi-language TTS from Alibaba with API-based integration
+- **CosyVoice**: Multi-language TTS from Alibaba with local GPU inference
+- **Index-TTS**: Industrial-level controllable zero-shot TTS from IndexTeam
 
 ### Key Components
 
@@ -80,11 +93,13 @@ ZeroShotTTS/
 │   ├── baseTTS.py          # Abstract TTS interface (BaseTTS class)
 │   ├── fishspeech_api.py   # Fish-Speech wrapper implementation
 │   ├── gptSoVITS_tts.py    # GPT-SoVITS wrapper implementation
-│   └── cosyvoice_tts.py    # CosyVoice wrapper implementation
+│   ├── cosyvoice_tts.py    # CosyVoice wrapper implementation
+│   └── index_tts.py        # Index-TTS wrapper implementation
 ├── TTS_Model/              # Model implementations (git submodules)
 │   ├── fish-speech/        # Transformer-based TTS
 │   ├── GPT-SoVITS/         # GPT + SoVITS models
-│   └── CosyVoice/          # Multi-language TTS from Alibaba
+│   ├── CosyVoice/          # Multi-language TTS from Alibaba
+│   └── index-tts/          # Industrial-level zero-shot TTS
 ├── examples/               # Sample files and reference audio
 ├── scripts/                # Utility scripts for setup
 └── docs/                   # Documentation
@@ -111,9 +126,10 @@ All TTS models implement the BaseTTS abstract class with these key methods:
 from infer_api.fishspeech_api import FishSpeechTTS
 from infer_api.gptSoVITS_tts import GPTSoVITSTTS
 from infer_api.cosyvoice_tts import CosyVoiceTTS
+from infer_api.index_tts import IndexTTSTTS
 
 # Initialize models
-tts = FishSpeechTTS()  # or GPTSoVITSTTS() or CosyVoiceTTS()
+tts = FishSpeechTTS()  # or GPTSoVITSTTS() or CosyVoiceTTS() or IndexTTSTTS()
 
 # Register speaker and synthesize
 speaker_id = tts.register_speaker(prompt_audio="ref.wav", prompt_text="Reference text")
@@ -140,6 +156,7 @@ The `infer.py` script provides advanced features:
 - **Fish-Speech**: `TTS_Model/fish-speech/configs/` (YAML configs)
 - **GPT-SoVITS**: `TTS_Model/GPT-SoVITS/config.py`
 - **CosyVoice**: `TTS_Model/CosyVoice/cosyvoice.yaml`
+- **Index-TTS**: `TTS_Model/index-tts/checkpoints/config.yaml`
 - **Unified API**: Environment variables override defaults
 
 ### Model Locations
@@ -147,13 +164,13 @@ Models are stored in:
 - **Fish-Speech**: `TTS_Model/fish-speech/checkpoints/`
 - **GPT-SoVITS**: `TTS_Model/GPT-SoVITS/GPT_weights/` and `SoVITS_weights/`
 - **CosyVoice**: Downloaded automatically or placed in `TTS_Model/CosyVoice/pretrained_models/`
+- **Index-TTS**: Download from HuggingFace: `IndexTeam/IndexTTS-2` to `TTS_Model/index-tts/checkpoints/`
 
 ### Supported Languages
-- Chinese (Mandarin)
-- English
-- Japanese
-- Korean
-- Cantonese
+- **Fish-Speech**: Chinese, English, Japanese, Korean, Cantonese
+- **GPT-SoVITS**: Chinese, English, Japanese, Korean, Cantonese
+- **CosyVoice**: Chinese, English, Japanese, Korean, Cantonese
+- **Index-TTS**: Chinese, English (primary support)
 
 ## Common Issues and Solutions
 
@@ -183,7 +200,9 @@ All TTS model wrappers in `infer_api/` must follow these standards:
 - **No API calls**: All models must use direct local GPU inference
 - **Direct model loading**: Load models locally using the model's native Python interface
 - **GPU optimization**: Implement proper CUDA device management and memory optimization
-- **Example**: CosyVoiceTTS uses direct `CosyVoice2()` initialization instead of HTTP API calls
+- **Examples**:
+  - CosyVoiceTTS uses direct `CosyVoice2()` initialization
+  - IndexTTSTTS uses direct `IndexTTS2()` initialization
 
 #### 2. Import Conventions
 - **Direct imports**: Import model dependencies directly without try-except blocks
@@ -243,13 +262,51 @@ if self.model_sample_rate != 16000:
     )
 ```
 
-#### 7. BaseTTS Interface Compliance
+#### 7. Model-Specific Implementation Rules
+
+**Index-TTS Specific Rules:**
+- **Simplified Modes**: Only support `zero_shot` and `default` modes
+  - `zero_shot`: Use registered speaker for voice cloning
+  - `default`: Use default reference audio or first registered speaker
+- **Speaker Registration**: Store reference audio paths, use IndexTTS2.infer() directly
+- **Audio Format**: Index-TTS expects 16kHz input, outputs 24kHz (resample to 16kHz)
+- **Error Handling**: Validate speaker existence before inference
+
+```python
+def tts_with_speaker(self, text, speaker_id=None, mode='zero_shot'):
+    if mode == 'zero_shot':
+        # Use registered speaker audio
+        if speaker_id and speaker_id in self.speakers:
+            spk_audio = self.speakers[speaker_id]['prompt_audio']
+            result = self.index_tts.infer(spk_audio_prompt=spk_audio, text=text)
+        else:
+            raise ValueError("Speaker not found")
+    elif mode == 'default':
+        # Use default reference audio or first registered speaker
+        default_audio = kwargs.get('default_spk_audio') or self._get_first_speaker()
+        result = self.index_tts.infer(spk_audio_prompt=default_audio, text=text)
+
+    # Process result and resample to 16kHz
+    audio = self._process_inference_result(result)
+    return audio
+```
+
+#### 8. BaseTTS Interface Compliance
 All models must implement:
 - `register_speaker()`: Speaker registration with audio/text pairs
 - `tts()`: Basic synthesis with default speaker
 - `tts_with_speaker()`: Synthesis with specific speaker
 - `is_available()`: Model availability check
 - `get_model_info()`: Model metadata and capabilities
+
+### Code Implementation Standards Summary
+
+| Model | Modes | Sample Rate | GPU Memory | Languages | Special Notes |
+|-------|-------|-------------|------------|-----------|---------------|
+| FishSpeech | zero_shot, sft | 16kHz output | 8GB+ | CN, EN, JP, KR, Yue | Transformer + VQGAN |
+| GPT-SoVITS | zero_shot, sft | 16kHz output | 8GB+ | CN, EN, JP, KR, Yue | GPT + SoVITS |
+| CosyVoice | zero_shot, cross_lingual, instruct, sft | 16kHz output | 6GB+ | CN, EN, JP, KR, Yue | Multi-language support |
+| Index-TTS | **zero_shot, default only** | 16kHz output | 6GB+ | CN, EN | **Simplified modes, industrial-grade** |
 
 ## Testing and Validation
 
@@ -262,6 +319,7 @@ python -m pytest tests/
 python -m pytest tests/test_fishspeech.py -v
 python -m pytest tests/test_gptsovits.py -v
 python -m pytest tests/test_cosyvoice.py -v
+python -m pytest tests/test_index_tts.py -v
 ```
 
 ### Integration Tests
@@ -272,4 +330,5 @@ curl -X POST http://localhost:8080/tts -H "Content-Type: application/json" -d '{
 
 # Test batch processing
 python infer.py --input_dir examples/texts --output_dir test_output --model fish-speech --max_workers 2
+python infer.py --input_dir examples/texts --output_dir test_output --model index-tts --max_workers 2
 ```

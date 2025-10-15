@@ -228,6 +228,36 @@ def run_tts_with_list_file(input_file, output_dir, model_name, speaker_audio=Non
                         
                     except Exception as e:
                         print(f"Error processing line {i+1}: {e}")
+    elif model_name == 'index-tts':
+        from infer_api.index_tts import IndexTTSTTS
+        tts = IndexTTSTTS()
+
+        # 注册说话人
+        speaker_id = None
+        if speaker_audio and speaker_text:
+            speaker_id = tts.register_speaker(speaker_audio, speaker_text)
+
+        # 处理文本文件
+        with open(input_file, 'r', encoding='utf-8') as f:
+            for i, line in enumerate(f):
+                line = line.strip()
+                if line:
+                    print(f"Processing line {i+1}: {line[:50]}...")
+
+                    try:
+                        if speaker_id:
+                            audio = tts.tts_with_speaker(line, speaker_id)
+                        else:
+                            audio = tts.tts(line)
+
+                        # 保存音频文件
+                        output_file = os.path.join(output_dir, f"audio_{i+1:04d}.wav")
+                        import scipy.io.wavfile as wavfile
+                        wavfile.write(output_file, 16000, (audio * 32767).astype('int16'))
+                        print(f"Saved: {output_file}")
+
+                    except Exception as e:
+                        print(f"Error processing line {i+1}: {e}")
     else:
         raise ValueError(f"Unsupported model: {model_name}")
 
@@ -236,7 +266,7 @@ def main():
     parser = argparse.ArgumentParser(description='ZeroShotTTS批量推理工具')
     parser.add_argument('--input_dir', required=True, help='输入文本文件目录')
     parser.add_argument('--output_dir', required=True, help='输出音频文件目录')
-    parser.add_argument('--model', choices=['fish-speech', 'gpt-sovits', 'cosyvoice'], 
+    parser.add_argument('--model', choices=['fish-speech', 'gpt-sovits', 'cosyvoice', 'index-tts'],
                        default='fish-speech', help='使用的TTS模型')
     parser.add_argument('--speaker_audio', help='参考音频文件路径（用于零样本克隆）')
     parser.add_argument('--speaker_text', help='参考音频对应的文本内容')
