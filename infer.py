@@ -161,7 +161,7 @@ def run_tts_with_list_file(input_file, output_dir, model_name, speaker_audio=Non
                         # 保存音频文件
                         output_file = os.path.join(output_dir, f"audio_{i+1:04d}.wav")
                         import scipy.io.wavfile as wavfile
-                        wavfile.write(output_file, 22050, (audio * 32767).astype('int16'))
+                        wavfile.write(output_file, 16000, (audio * 32767).astype('int16'))
                         print(f"Saved: {output_file}")
                         
                     except Exception as e:
@@ -192,7 +192,7 @@ def run_tts_with_list_file(input_file, output_dir, model_name, speaker_audio=Non
                         # 保存音频文件
                         output_file = os.path.join(output_dir, f"audio_{i+1:04d}.wav")
                         import scipy.io.wavfile as wavfile
-                        wavfile.write(output_file, 22050, (audio * 32767).astype('int16'))
+                        wavfile.write(output_file, 16000, (audio * 32767).astype('int16'))
                         print(f"Saved: {output_file}")
                         
                     except Exception as e:
@@ -223,7 +223,7 @@ def run_tts_with_list_file(input_file, output_dir, model_name, speaker_audio=Non
                         # 保存音频文件
                         output_file = os.path.join(output_dir, f"audio_{i+1:04d}.wav")
                         import scipy.io.wavfile as wavfile
-                        wavfile.write(output_file, 22050, (audio * 32767).astype('int16'))
+                        wavfile.write(output_file, 16000, (audio * 32767).astype('int16'))
                         print(f"Saved: {output_file}")
                         
                     except Exception as e:
