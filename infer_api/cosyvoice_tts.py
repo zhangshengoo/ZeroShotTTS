@@ -228,8 +228,6 @@ class CosyVoiceTTS(BaseTTS):
                     # 使用已注册的说话人，通过zero_shot_spk_id参数指定
                     outputs = self.cosyvoice.inference_zero_shot(
                         tts_text=text,
-                        prompt_text='',  # 空字符串，因为我们已经注册了说话人
-                        prompt_speech_16k=torch.zeros(1, 16000),  # 虚拟音频数据
                         zero_shot_spk_id=speaker_id,  # 使用已注册的说话人ID
                         **inference_kwargs
                     )
@@ -268,6 +266,36 @@ class CosyVoiceTTS(BaseTTS):
 
         except Exception as e:
             raise Exception(f"CosyVoice TTS error: {str(e)}")
+
+    def _process_speaker_embedding(self, prompt_audio: np.ndarray, prompt_text: str) -> Dict[str, Any]:
+        """处理参考音频和文本以生成说话人嵌入 - CosyVoice简化实现
+
+        直接返回原始的参考音频和文本数据，让CosyVoice的add_zero_shot_spk方法
+        自行处理特征提取，避免复杂的嵌入计算逻辑。
+
+        Args:
+            prompt_audio: 参考音频数据 (numpy数组, 16kHz)
+            prompt_text: 参考文本内容
+
+        Returns:
+            简化的说话人特征字典，包含原始音频和文本
+        """
+        try:
+            # 直接返回原始数据，让CosyVoice自行处理特征提取
+            speaker_embedding = {
+                'prompt_audio': prompt_audio,      # 原始参考音频
+                'prompt_text': prompt_text,        # 原始参考文本
+                'sample_rate': 16000,              # 采样率
+                'model_version': self.model_version,
+                'language': self.language if hasattr(self, 'language') else 'auto'
+            }
+
+            logging.info(f"CosyVoice speaker embedding simplified: returning raw audio and text data")
+            return speaker_embedding
+
+        except Exception as e:
+            logging.error(f"Failed to process CosyVoice speaker embedding: {str(e)}")
+            raise Exception(f"CosyVoice speaker embedding error: {str(e)}")
 
     def _save_audio_to_file(self, audio_data: np.ndarray, file_path: str, sample_rate: int = 16000):
         """将音频数据保存为WAV文件"""
